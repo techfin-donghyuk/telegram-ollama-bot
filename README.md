@@ -9,7 +9,6 @@ pm2 startup
 
 # env
 .env에 TELEGRAM_TOKEN을 입력해야 합니다.
-TELEGRAM_TOKEN=123456789:AAHxxxxxxxxxxxxxxxxxxxx
 
 # 텔레그램 봇 중지
 pm2 stop telegram-ollama-bot
