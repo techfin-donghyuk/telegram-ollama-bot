@@ -1,0 +1,26 @@
+{
+  "name": "telegram-ollama-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/techfin-donghyuk/telegram-ollama-bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/techfin-donghyuk/telegram-ollama-bot/issues"
+  },
+  "homepage": "https://github.com/techfin-donghyuk/telegram-ollama-bot#readme",
+  "dependencies": {
+    "axios": "^1.13.4",
+    "dotenv": "^17.2.4",
+    "node-telegram-bot-api": "^0.67.0"
+  }
+}
