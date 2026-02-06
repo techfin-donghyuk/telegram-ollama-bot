@@ -181,6 +181,7 @@ bot.onText(/\/current/, (msg) => {
  * 명령어: /reset
  * ------------------------- */
 bot.onText(/\/reset/, (msg) => {
+    if (!isAuthorized(msg)) return;
     const session = getSession(msg.chat.id);
     session.messages = [];
 
