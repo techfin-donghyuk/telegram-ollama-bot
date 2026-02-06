@@ -24,11 +24,39 @@ const sessions = new Map();
 function getSession(chatId) {
     if (!sessions.has(chatId)) {
         sessions.set(chatId, {
-            model: 'qwen3:1.7b',
+            model: 'gemma3:4b',
             messages: []
         });
     }
     return sessions.get(chatId);
+}
+
+async function resolveModelByPrefix(prefix, currentModel) {
+    const res = await axios.get(`${OLLAMA_BASE}/tags`);
+    const models = res.data.models.map(m => m.name);
+
+    // prefix 매칭
+    const matched = models.filter(name =>
+        name.toLowerCase().startsWith(prefix.toLowerCase())
+    );
+
+    if (matched.length === 0) {
+        return null;
+    }
+
+    // 현재 모델 제외
+    const candidates = matched.filter(name => name !== currentModel);
+
+    // 전부 현재 모델이면 → 그대로 반환
+    if (candidates.length === 0) {
+        return currentModel;
+    }
+
+    // 랜덤 선택
+    const chosen =
+        candidates[Math.floor(Math.random() * candidates.length)];
+
+    return chosen;
 }
 
 /* -------------------------
@@ -39,6 +67,7 @@ bot.onText(/\/start/, (msg) => {
         `안녕하세요! 저는 Ollama 챗봇입니다.
         \n\n/model [모델명] 으로 모델을 변경할 수 있습니다.
         \n/models 로 설치된 모델 목록을 볼 수 있습니다.
+        \n/current 로 현재 사용 중인 모델을 볼 수 있습니다.
         \n/reset 로 대화 컨텍스트를 초기화 할 수 있습니다.`
     );
 });
@@ -65,18 +94,62 @@ bot.onText(/\/models/, async (msg) => {
 /* -------------------------
  * 명령어: /model <name>
  * ------------------------- */
-bot.onText(/\/model (.+)/, (msg, match) => {
-    const modelName = match[1].trim();
-    const session = getSession(msg.chat.id);
+bot.onText(/\/model (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const input = match[1].trim();
+    const session = getSession(chatId);
 
-    session.model = modelName;
-    session.messages = []; // 모델 변경 시 컨텍스트 초기화
+    try {
+        const resolvedModel = await resolveModelByPrefix(
+            input,
+            session.model
+        );
+
+        if (!resolvedModel) {
+            await bot.sendMessage(
+                chatId,
+                `❌ "${input}" 로 시작하는 모델을 찾을 수 없어요`
+            );
+            return;
+        }
+
+        // 모델 변경
+        session.model = resolvedModel;
+        session.messages = [];
+
+        await bot.sendMessage(
+            chatId,
+            `✅ 모델 변경 완료\n` +
+            `입력: ${input}\n` +
+            `선택된 모델: ${resolvedModel}`
+        );
+    } catch (err) {
+        console.error(err.message);
+        await bot.sendMessage(chatId, '❌ 모델 변경 중 오류 발생');
+    }
+});
+bot.onText(/^\/model$/, (msg) => {
+    const session = getSession(msg.chat.id);
 
     bot.sendMessage(
         msg.chat.id,
-        `✅ 모델 변경 완료\n현재 모델: ${modelName}`
+        `🤖 현재 모델: ${session.model}
+        \n\n모델 변경: /model <model-name>`
     );
 });
+
+/* -------------------------
+ * 명령어: /current
+ * ------------------------- */
+bot.onText(/\/current/, (msg) => {
+    const session = getSession(msg.chat.id);
+
+    bot.sendMessage(
+        msg.chat.id,
+        `🤖 현재 모델: ${session.model}`
+    );
+});
+
 
 /* -------------------------
  * 명령어: /reset
@@ -114,16 +187,19 @@ bot.on('message', async (msg) => {
         });
 
         const answer = res.data.message.content;
+        if (!answer) {
+            throw new Error('Ollama 응답에 message.content 없음');
+        }
 
         session.messages.push({
             role: 'assistant',
             content: answer
         });
 
-        bot.sendMessage(chatId, answer);
+        await bot.sendMessage(chatId, answer);
     } catch (err) {
-        console.error(err.message);
-        bot.sendMessage(chatId, '❌ Ollama 응답 중 오류 발생');
+        console.error('OLLAMA ERROR:', err.response?.data || err.message);
+        await bot.sendMessage(chatId, '❌ LLM 응답 처리 중 오류 발생');
     }
 });
 
