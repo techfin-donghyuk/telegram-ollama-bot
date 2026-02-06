@@ -24,7 +24,7 @@ const sessions = new Map();
 function getSession(chatId) {
     if (!sessions.has(chatId)) {
         sessions.set(chatId, {
-            model: 'llama3.1',
+            model: 'qwen3:1.7b',
             messages: []
         });
     }
