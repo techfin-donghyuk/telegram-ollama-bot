@@ -8,6 +8,13 @@ if (!TELEGRAM_TOKEN) {
     process.exit(1);
 }
 
+const TELEGRAM_ALLOWED_IDS = new Set(
+    (process.env.TELEGRAM_ALLOWED_IDS || '')
+        .split(',')
+        .map(id => Number(id.trim()))
+        .filter(Boolean)
+);
+
 const OLLAMA_BASE = 'http://localhost:11434/api';
 
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
@@ -29,6 +36,10 @@ function getSession(chatId) {
         });
     }
     return sessions.get(chatId);
+}
+
+function isAuthorized(msg) {
+    return TELEGRAM_ALLOWED_IDS.has(msg.from?.id);
 }
 
 async function resolveModelByPrefix(prefix, currentModel) {
@@ -65,7 +76,8 @@ async function resolveModelByPrefix(prefix, currentModel) {
 bot.onText(/\/start/, (msg) => {
     bot.sendMessage(msg.chat.id,
         `안녕하세요! 저는 Ollama 챗봇입니다.
-        \n\n/model [모델명] 으로 모델을 변경할 수 있습니다.
+        \n\n/whoami 로 자신의 텔레그램 ID를 확인할 수 있습니다.
+        \n/model [모델명] 으로 모델을 변경할 수 있습니다.
         \n/models 로 설치된 모델 목록을 볼 수 있습니다.
         \n/current 로 현재 사용 중인 모델을 볼 수 있습니다.
         \n/reset 로 대화 컨텍스트를 초기화 할 수 있습니다.`
@@ -73,9 +85,20 @@ bot.onText(/\/start/, (msg) => {
 });
 
 /* -------------------------
+ * 명령어: /whoami
+ * ------------------------- */
+bot.onText(/\/whoami/, (msg) => {
+    bot.sendMessage(
+        msg.chat.id,
+        `🆔 Your Telegram ID: ${msg.from.id}`
+    );
+});
+
+/* -------------------------
  * 명령어: /models
  * ------------------------- */
 bot.onText(/\/models/, async (msg) => {
+    if (!isAuthorized(msg)) return;
     try {
         const res = await axios.get(`${OLLAMA_BASE}/tags`);
         const models = res.data.models
@@ -95,6 +118,7 @@ bot.onText(/\/models/, async (msg) => {
  * 명령어: /model <name>
  * ------------------------- */
 bot.onText(/\/model (.+)/, async (msg, match) => {
+    if (!isAuthorized(msg)) return;
     const chatId = msg.chat.id;
     const input = match[1].trim();
     const session = getSession(chatId);
@@ -108,7 +132,7 @@ bot.onText(/\/model (.+)/, async (msg, match) => {
         if (!resolvedModel) {
             await bot.sendMessage(
                 chatId,
-                `❌ "${input}" 로 시작하는 모델을 찾을 수 없어요`
+                `❌ "${input}" 로 시작하는 모델을 찾을 수 없어요.`
             );
             return;
         }
@@ -129,6 +153,7 @@ bot.onText(/\/model (.+)/, async (msg, match) => {
     }
 });
 bot.onText(/^\/model$/, (msg) => {
+    if (!isAuthorized(msg)) return;
     const session = getSession(msg.chat.id);
 
     bot.sendMessage(
@@ -142,6 +167,7 @@ bot.onText(/^\/model$/, (msg) => {
  * 명령어: /current
  * ------------------------- */
 bot.onText(/\/current/, (msg) => {
+    if (!isAuthorized(msg)) return;
     const session = getSession(msg.chat.id);
 
     bot.sendMessage(
@@ -158,13 +184,14 @@ bot.onText(/\/reset/, (msg) => {
     const session = getSession(msg.chat.id);
     session.messages = [];
 
-    bot.sendMessage(msg.chat.id, '🧹 대화 컨텍스트를 초기화했어요');
+    bot.sendMessage(msg.chat.id, '🧹 대화 컨텍스트를 초기화했어요.');
 });
 
 /* -------------------------
  * 일반 메시지 처리
  * ------------------------- */
 bot.on('message', async (msg) => {
+    if (!isAuthorized(msg)) return;
     const text = msg.text;
     if (!text || text.startsWith('/')) return;
 
