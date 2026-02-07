@@ -1,7 +1,7 @@
 # telegram-ollama-bot
 
 # 텔레그램 봇 설치
-npm install
+pnpm install
 npm install -g pm2
 pm2 start index.js --name "telegram-ollama-bot"
 pm2 save
